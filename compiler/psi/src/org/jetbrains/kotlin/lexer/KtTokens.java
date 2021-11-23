@@ -45,6 +45,8 @@ public interface KtTokens {
 
     KtToken CLOSING_QUOTE = new KtToken("CLOSING_QUOTE");
     KtToken OPEN_QUOTE = new KtToken("OPEN_QUOTE");
+    KtToken CLOSING_SQUOTE = new KtToken("CLOSING_QUOTE");
+    KtToken OPEN_SQUOTE = new KtToken("OPEN_QUOTE");
     KtToken REGULAR_STRING_PART = new KtToken("REGULAR_STRING_PART");
     KtToken ESCAPE_SEQUENCE = new KtToken("ESCAPE_SEQUENCE");
     KtToken SHORT_TEMPLATE_ENTRY_START = new KtToken("SHORT_TEMPLATE_ENTRY_START");

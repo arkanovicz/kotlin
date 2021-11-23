@@ -68,7 +68,7 @@ import org.jetbrains.kotlin.lexer.KtTokens;
   return;
 %eof}
 
-%xstate STRING RAW_STRING SHORT_TEMPLATE_ENTRY BLOCK_COMMENT DOC_COMMENT
+%xstate STRING RAW_STRING LITERAL_STRING LIT_RAW_STRING SHORT_TEMPLATE_ENTRY BLOCK_COMMENT DOC_COMMENT
 %state LONG_TEMPLATE_ENTRY UNMATCHED_BACKTICK
 
 DIGIT=[0-9]
@@ -114,6 +114,11 @@ CHARACTER_LITERAL="'"([^\\\'\n]|{ESCAPE_SEQUENCE})*("'"|\\)?
 ESCAPE_SEQUENCE=\\(u{HEX_DIGIT}{HEX_DIGIT}{HEX_DIGIT}{HEX_DIGIT}|[^\n])
 
 // ANY_ESCAPE_SEQUENCE = \\[^]
+
+THREE_SQUO = ("'''")
+THREE_OR_MORE_SQUO = ({THREE_SQUO}"'"*)
+SQUOTED_STRING_PART=[^\\\'\n\$]+
+
 THREE_QUO = (\"\"\")
 THREE_OR_MORE_QUO = ({THREE_QUO}\"*)
 
@@ -124,6 +129,33 @@ LONG_TEMPLATE_ENTRY_START=\$\{
 LONELY_BACKTICK=`
 
 %%
+
+// Literal strings
+
+{THREE_SQUO}                           { pushState(LITERAL_STRING); return KtTokens.OPEN_SQUOTE; }
+<LIT_RAW_STRING> \n                    { return KtTokens.REGULAR_STRING_PART; }
+<LIT_RAW_STRING> \'                    { return KtTokens.REGULAR_STRING_PART; }
+<LIT_RAW_STRING> \\                    { return KtTokens.REGULAR_STRING_PART; }
+<LIT_RAW_STRING> {SQUOTED_STRING_PART} { return KtTokens.REGULAR_STRING_PART; }
+<LIT_RAW_STRING> {THREE_OR_MORE_SQUO}  {
+                                           int length = yytext().length();
+                                           if (length == 3) { // closing '''
+                                               popState();
+                                               return KtTokens.CLOSING_SQUOTE;
+                                           }
+                                           else { // some quotes at the end of a string, e.g. ''' 'foo''''
+                                               yypushback(3); // return the closing quotes (''') to the stream
+                                               return KtTokens.REGULAR_STRING_PART;
+                                           }
+                                       }
+
+{CHARACTER_LITERAL} { return KtTokens.CHARACTER_LITERAL; }
+
+\'                             { pushState(LITERAL_STRING); return KtTokens.OPEN_SQUOTE; }
+<STRING> \n                    { popState(); yypushback(1); return KtTokens.DANGLING_NEWLINE; }
+<STRING> \'                    { popState(); return KtTokens.CLOSING_SQUOTE; }
+<STRING> {ESCAPE_SEQUENCE}     { return KtTokens.ESCAPE_SEQUENCE; }
+<STRING> {SQUOTED_STRING_PART} { return KtTokens.REGULAR_STRING_PART; }
 
 // String templates
 
@@ -237,8 +269,6 @@ LONELY_BACKTICK=`
 {INTEGER_LITERAL} { return KtTokens.INTEGER_LITERAL; }
 
 {DOUBLE_LITERAL}     { return KtTokens.FLOAT_LITERAL; }
-
-{CHARACTER_LITERAL} { return KtTokens.CHARACTER_LITERAL; }
 
 "typealias"  { return KtTokens.TYPE_ALIAS_KEYWORD ;}
 "interface"  { return KtTokens.INTERFACE_KEYWORD ;}

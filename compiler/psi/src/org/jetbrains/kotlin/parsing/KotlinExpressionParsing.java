@@ -60,7 +60,7 @@ public class KotlinExpressionParsing extends AbstractKotlinParsing {
     }
 
     private static final TokenSet TYPE_ARGUMENT_LIST_STOPPERS = TokenSet.create(
-            INTEGER_LITERAL, FLOAT_LITERAL, CHARACTER_LITERAL, OPEN_QUOTE,
+            INTEGER_LITERAL, FLOAT_LITERAL, CHARACTER_LITERAL, OPEN_QUOTE, OPEN_SQUOTE,
             PACKAGE_KEYWORD, AS_KEYWORD, TYPE_ALIAS_KEYWORD, INTERFACE_KEYWORD, CLASS_KEYWORD, THIS_KEYWORD, VAL_KEYWORD, VAR_KEYWORD,
             FUN_KEYWORD, FOR_KEYWORD, NULL_KEYWORD,
             TRUE_KEYWORD, FALSE_KEYWORD, IS_KEYWORD, THROW_KEYWORD, RETURN_KEYWORD, BREAK_KEYWORD,
@@ -87,7 +87,7 @@ public class KotlinExpressionParsing extends AbstractKotlinParsing {
 
             // literal constant
             TRUE_KEYWORD, FALSE_KEYWORD,
-            OPEN_QUOTE,
+            OPEN_QUOTE, OPEN_SQUOTE,
             INTEGER_LITERAL, CHARACTER_LITERAL, FLOAT_LITERAL,
             NULL_KEYWORD,
 
@@ -676,6 +676,9 @@ public class KotlinExpressionParsing extends AbstractKotlinParsing {
         else if (at(LBRACE)) {
             parseFunctionLiteral();
         }
+        else if (at(OPEN_SQUOTE)) {
+            parseLiteralString();
+        }
         else if (at(OPEN_QUOTE)) {
             parseStringTemplate();
         }
@@ -716,6 +719,34 @@ public class KotlinExpressionParsing extends AbstractKotlinParsing {
         template.done(STRING_TEMPLATE);
     }
 
+    /*
+     * literalString
+     *   : OPEN_SQUOTE literalStringElement* CLOSING_SQUOTE
+     *   ;
+     */
+    private void parseLiteralString() {
+        assert _at(OPEN_SQUOTE);
+
+        PsiBuilder.Marker template = mark();
+
+        advance(); // OPEN_SQUOTE
+
+        while (!eof()) {
+            if (at(CLOSING_QUOTE) || at(DANGLING_NEWLINE)) {
+                break;
+            }
+            parseLiteralStringElement();
+        }
+
+        if (at(DANGLING_NEWLINE)) {
+            errorAndAdvance("Expecting \"'\"");
+        }
+        else {
+            expect(CLOSING_QUOTE, "Expecting \"'\"");
+        }
+        template.done(STRING_TEMPLATE);
+    }
+        
     /*
      * stringTemplateElement
      *   : RegularStringPart
@@ -795,6 +826,29 @@ public class KotlinExpressionParsing extends AbstractKotlinParsing {
         }
     }
 
+    /*
+     * literalStringElement
+     *   : RegularStringPart
+     *   : EscapeSequence
+     *   ;
+     */
+    private void parseLiteralStringElement() {
+        if (at(REGULAR_STRING_PART)) {
+            PsiBuilder.Marker mark = mark();
+            advance(); // REGULAR_STRING_PART
+            mark.done(LITERAL_STRING_TEMPLATE_ENTRY);
+        }
+        else if (at(ESCAPE_SEQUENCE)) {
+            PsiBuilder.Marker mark = mark();
+            advance(); // ESCAPE_SEQUENCE
+            mark.done(ESCAPE_STRING_TEMPLATE_ENTRY);
+        }
+        else {
+            errorAndAdvance("Unexpected token in a string template");
+        }
+    }
+
+    
     /*
      * literalConstant
      *   : "true" | "false"
